@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "FastfileToolkit": {
+      "commandName": "Project",
+      "nativeDebugging": true
+    }
+  }
+}

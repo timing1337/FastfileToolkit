@@ -1,0 +1,13 @@
+FlushInstructionCache
+GetCurrentProcess
+GetLastError
+GetModuleInformation
+GetProcAddress
+ImageDirectoryEntryToData
+LoadLibrary
+LoadLibraryEx
+PIMAGE_IMPORT_DESCRIPTOR
+SetDllDirectory
+VirtualProtect
+VirtualProtectEx
+WriteProcessMemory
