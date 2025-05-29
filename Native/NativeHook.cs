@@ -2,8 +2,7 @@
 
 namespace FastfileToolkit.Native;
 
-public class NativeLib
-{
+public class NativeLib {
     [DllImport("Dependencies/dobby.dll")]
     public static extern unsafe int DobbyHook(void* address, void* fake_func, void** out_origin_func);
 
@@ -11,8 +10,7 @@ public class NativeLib
     public static extern unsafe int DobbyDestroy(void* address);
 }
 
-public class NativeHook<T> where T : Delegate
-{
+public class NativeHook<T> where T : Delegate {
     private T _detour;
     private T _trampoline;
 
@@ -20,15 +18,12 @@ public class NativeHook<T> where T : Delegate
     private IntPtr _detourHandle;
     private IntPtr _trampolineHandle;
 
-    public IntPtr Target
-    {
-        get
-        {
+    public IntPtr Target {
+        get {
             return _targetHandle;
         }
 
-        set
-        {
+        set {
             if (value == IntPtr.Zero)
                 throw new ArgumentNullException("value");
 
@@ -36,15 +31,12 @@ public class NativeHook<T> where T : Delegate
         }
     }
 
-    public IntPtr Detour
-    {
-        get
-        {
+    public IntPtr Detour {
+        get {
             return _detourHandle;
         }
 
-        set
-        {
+        set {
             if (value == IntPtr.Zero)
                 throw new ArgumentNullException("value");
 
@@ -52,11 +44,9 @@ public class NativeHook<T> where T : Delegate
         }
     }
 
-    public T Trampoline
-    {
+    public T Trampoline {
         get => _trampoline;
-        private set
-        {
+        private set {
             if (value == null)
                 throw new ArgumentNullException(nameof(value));
             _trampoline = value;
@@ -64,11 +54,9 @@ public class NativeHook<T> where T : Delegate
 
     }
 
-    public IntPtr TrampolineHandle
-    {
+    public IntPtr TrampolineHandle {
         get => _trampolineHandle;
-        private set
-        {
+        private set {
             if (value == IntPtr.Zero)
                 throw new ArgumentNullException(nameof(value));
 
@@ -78,8 +66,7 @@ public class NativeHook<T> where T : Delegate
 
     public bool IsHooked { get; private set; }
 
-    public unsafe NativeHook(nint target, T detour, bool autoAttach = true)
-    {
+    public unsafe NativeHook(nint target, T detour, bool autoAttach = true) {
         if (target == nint.Zero)
             throw new ArgumentNullException(nameof(target));
 
@@ -94,8 +81,7 @@ public class NativeHook<T> where T : Delegate
             Attach();
     }
 
-    public unsafe void Attach()
-    {
+    public unsafe void Attach() {
         if (IsHooked)
             return;
 
@@ -114,8 +100,7 @@ public class NativeHook<T> where T : Delegate
         IsHooked = true;
     }
 
-    public unsafe void Detach()
-    {
+    public unsafe void Detach() {
         if (!IsHooked)
             return;
 

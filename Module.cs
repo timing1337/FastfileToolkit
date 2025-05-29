@@ -13,13 +13,11 @@ using Windows.Win32.System.Memory;
 
 namespace FastfileToolkit;
 
-public class Module
-{
+public class Module {
     public SafeHandle Handle { get; private set; }
     public nint BaseAddress => Handle.DangerousGetHandle();
 
-    public static unsafe Module Load(string executable, string folderPath)
-    {
+    public static unsafe Module Load(string executable, string folderPath) {
         Module module = new Module();
         PInvoke.SetDllDirectory(folderPath);
         module.Handle = PInvoke.LoadLibrary(executable);

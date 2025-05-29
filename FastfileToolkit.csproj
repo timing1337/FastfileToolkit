@@ -21,13 +21,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ContentWithTargetPath Include="Dependencies\bdiff.dll">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      <TargetPath>Dependencies\bdiff.dll</TargetPath>
-    </ContentWithTargetPath>
     <ContentWithTargetPath Include="Dependencies\dobby.dll">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <TargetPath>Dependencies\dobby.dll</TargetPath>
+    </ContentWithTargetPath>
+    <ContentWithTargetPath Include="Dependencies\oo2core_8_win64.dll">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <TargetPath>Dependencies\oo2core_8_win64.dll</TargetPath>
     </ContentWithTargetPath>
 	</ItemGroup>
 </Project>

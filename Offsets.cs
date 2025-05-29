@@ -7,15 +7,13 @@ using System.Threading.Tasks;
 
 namespace FastfileToolkit;
 
-public struct Patch
-{
+public struct Patch {
     public string Name;
     public nint Offset;
     public byte[] Replacement;
 }
 
-public struct Offset
-{
+public struct Offset {
     public nint DB_InitStreams;
     public nint DB_PatchMem_BeginLoad;
     public nint Load_ArchiveData;
@@ -25,6 +23,11 @@ public struct Offset
     public nint SL_GetStringOfSize;
     public nint DecryptString;
     public nint DB_AddXAsset;
+
+    public nint j_CoD_XXH64;
+
+    // Black Ops 6 specific patches
+    public nint DB_RemapAssetType;
 
     public Patch[] Patches;
 }

@@ -1,24 +1,22 @@
 ﻿using FastfileToolkit.Fastfiles;
 using FastfileToolkit.Native;
+using Newtonsoft.Json;
 using Serilog;
 using System.Runtime.InteropServices;
+using System.Text;
 using Windows.Win32;
 using Windows.Win32.System.Memory;
 
 namespace FastfileToolkit.Games;
-public abstract unsafe class BaseGame
-{
+public abstract unsafe class BaseGame {
     public abstract string Name { get; }
     public abstract string ExecutableName { get; }
-    public abstract string OodleLibraryName { get; }
     public abstract Offset GameOffset { get; }
 
     public string GamePath { get; }
+    public Module Module { get; set; }
 
-    private Module Module { get; set; }
-    private Fastfile CurrentFile;
-
-    private byte* AlignmentBuffer;
+    public Fastfile CurrentFile { get; set; }
 
     public Dictionary<ulong, nint> StringTable = new();
 
@@ -46,71 +44,73 @@ public abstract unsafe class BaseGame
     public delegate void DB_AddXAssetFunc(uint type, nint assetPtr);
     public NativeHook<DB_AddXAssetFunc> DB_AddXAssetHook;
 
-    public BaseGame(string path)
-    {
+    public delegate char* GetXAssetTypeNameFunc(uint type);
+    public GetXAssetTypeNameFunc GetXAssetTypeName;
+
+    public delegate ulong j_CoD_XXH64Func(nint data, ulong size, ulong seed);
+    public j_CoD_XXH64Func j_CoD_XXH64;
+
+    public BaseGame(string path) {
         GamePath = path;
         LoadGame(path);
         ResolveOffset();
         AttachHooks();
+        Initialize();
     }
 
-    public void LoadGame(string path)
-    {
+    public void LoadGame(string path) {
         PInvoke.SetDllDirectory(path);
         string executable = Path.Join(Toolkit.DumpDirectory, ExecutableName);
+        if (!File.Exists(executable)) {
+            throw new FileNotFoundException($"Executable {ExecutableName} not found in {Toolkit.DumpDirectory}");
+        }
         Module = Module.Load(executable, path);
-        File.WriteAllText($"D:/{Module.BaseAddress:X}.txt", "");
     }
 
-    public void ResolveOffset()
-    {
+    public void LoadZone(string zone) {
+        CurrentFile = new Fastfile(zone);
+        DB_InitStreams(CurrentFile.MemoryBlocks);
+        DB_PatchMem_BeginLoad();
+        void* zoneMem = NativeMemory.AllocZeroed(1024);
+        Load_ArchiveData(zoneMem, CurrentFile.AssetList, (char*)Marshal.StringToHGlobalAnsi(zone), false);
+    }
+
+    public virtual void ResolveOffset() {
         Load_ArchiveData = Marshal.GetDelegateForFunctionPointer<Load_ArchiveDataFunc>(Module.BaseAddress + GameOffset.Load_ArchiveData);
         DB_InitStreams = Marshal.GetDelegateForFunctionPointer<DB_InitStreamsFunc>(Module.BaseAddress + GameOffset.DB_InitStreams);
         DB_PatchMem_BeginLoad = Marshal.GetDelegateForFunctionPointer<DB_PatchMem_BeginLoadFunc>(Module.BaseAddress + GameOffset.DB_PatchMem_BeginLoad);
         LoadStream = Marshal.GetDelegateForFunctionPointer<LoadStreamFunc>(Module.BaseAddress + GameOffset.LoadStream);
         DecryptString = Marshal.GetDelegateForFunctionPointer<DecryptStringFunc>(Module.BaseAddress + GameOffset.DecryptString);
+        j_CoD_XXH64 = Marshal.GetDelegateForFunctionPointer<j_CoD_XXH64Func>(Module.BaseAddress + GameOffset.j_CoD_XXH64);
+        SL_GetStringOfSizeHook = new NativeHook<SL_GetStringOfSize>(Module.BaseAddress + GameOffset.SL_GetStringOfSize, SL_GetStringOfSizeDetour);
+        GetXAssetTypeName = Marshal.GetDelegateForFunctionPointer<GetXAssetTypeNameFunc>(Module.BaseAddress + GameOffset.GetXAssetTypeName);
 
-        foreach(var patch in GameOffset.Patches)
-        {
+        foreach (var patch in GameOffset.Patches) {
             Log.Information("Applying {name} patch @ {offset:X}", patch.Name, patch.Offset);
 
-            if(!PInvoke.VirtualProtect((void*)(Module.BaseAddress + patch.Offset), (nuint)patch.Replacement.Length, PAGE_PROTECTION_FLAGS.PAGE_EXECUTE_READWRITE, out PAGE_PROTECTION_FLAGS oldProtect))
-            {
+            if (!PInvoke.VirtualProtect((void*)(Module.BaseAddress + patch.Offset), (nuint)patch.Replacement.Length, PAGE_PROTECTION_FLAGS.PAGE_EXECUTE_READWRITE, out PAGE_PROTECTION_FLAGS oldProtect)) {
                 Log.Error("Failed to change memory protection for patch");
                 continue;
             }
 
-            for (int i = 0; i < patch.Replacement.Length; i++)
-            {
+            for (int i = 0; i < patch.Replacement.Length; i++) {
                 *(byte*)(Module.BaseAddress + patch.Offset + i) = patch.Replacement[i];
             }
         }
     }
 
-    public void AttachHooks()
-    {
+    public virtual void AttachHooks() {
         DB_ReadXFileHook = new NativeHook<DB_ReadXFile>(Module.BaseAddress + GameOffset.DB_ReadXFile, DB_ReadXFileDetour);
-        SL_GetStringOfSizeHook = new NativeHook<SL_GetStringOfSize>(Module.BaseAddress + GameOffset.SL_GetStringOfSize, SL_GetStringOfSizeDetour);
-        DB_AddXAssetHook = new NativeHook<DB_AddXAssetFunc>(Module.BaseAddress + GameOffset.DB_AddXAsset, DB_AddXAssetDetour);
     }
 
-    public void DB_ReadXFileDetour(byte* pos, ulong size)
-    {
-        if (size > 2)
-        {
-            Log.Information("DB_ReadXFile size: {size}", size);
-        }
+    public void DB_ReadXFileDetour(byte* pos, ulong size) {
         byte[] data = CurrentFile.Reader.ReadBytes((int)size);
-        for (ulong i = 0; i < size; i++)
-        {
+        for (ulong i = 0; i < size; i++) {
             pos[i] = data[i];
         }
     }
-
-    public char* SL_GetStringOfSizeDetour(nint result, char* ptr, uint user, ulong size, int type)
-    {
-        if ((*ptr & 0xC0) == 0x80)
-        {
+    public char* SL_GetStringOfSizeDetour(nint result, char* ptr, uint user, ulong size, int type) {
+        if ((*ptr & 0xC0) == 0x80) {
             nint container = Marshal.AllocHGlobal(4096);
             char* decrypted = DecryptString(container, 4096, ptr, (void*)0);
             Marshal.FreeHGlobal(container);
@@ -119,17 +119,5 @@ public abstract unsafe class BaseGame
         return ptr;
     }
 
-    public void DB_AddXAssetDetour(uint type, nint assetPtr)
-    {
-        nint asset = *(nint*)assetPtr;
-        ulong hash = *(ulong*)asset;
-    }
-
-    public void LoadZone(string zone)
-    {
-        CurrentFile = new FastfileV1(zone);
-        DB_InitStreams(CurrentFile.MemoryBlocks);
-        DB_PatchMem_BeginLoad();
-        Load_ArchiveData((void*)null, CurrentFile.AssetList, (char*)Marshal.StringToHGlobalAnsi(zone), false);
-    }
+    public abstract void Initialize();
 }

@@ -6,23 +6,7 @@ using System.Threading.Tasks;
 
 namespace FastfileToolkit.Fastfiles;
 
-public class BDiffWindowSizes
-{
-    public ulong destWindow;
-    public ulong sourceWindow;
-    public ulong diffWindow;
-
-    public static BDiffWindowSizes Read(BinaryReader reader)
-    {
-        BDiffWindowSizes windowSizes = new BDiffWindowSizes();
-        windowSizes.destWindow = reader.ReadUInt64();
-        windowSizes.sourceWindow = reader.ReadUInt64();
-        windowSizes.diffWindow = reader.ReadUInt64();
-        return windowSizes;
-    }
-}
-public class FastPatch
-{
+public class FastPatch {
     public ulong magic;
     public uint version;
     public uint diffVersion;
@@ -30,8 +14,7 @@ public class FastPatch
     public ulong residentDiffCompSize;
     public ulong residentDiffUncompSize;
 
-    public static FastPatch Read(BinaryReader reader)
-    {
+    public static FastPatch Read(BinaryReader reader) {
         FastPatch header = new FastPatch();
         header.magic = reader.ReadUInt64();
         header.version = reader.ReadUInt32();

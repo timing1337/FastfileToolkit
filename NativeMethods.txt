@@ -11,3 +11,4 @@ SetDllDirectory
 VirtualProtect
 VirtualProtectEx
 WriteProcessMemory
+memset

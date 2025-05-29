@@ -9,13 +9,12 @@ using System.Threading.Tasks;
 
 namespace FastfileToolkit.Compressors;
 
-public unsafe class OodleDecompressor : BaseCompressor
-{
+public unsafe class OodleDecompressor : BaseCompressor {
 
     public uint BlockIndex = 0;
     public uint NextBlockHashIndex = 511;
 
-    [DllImport("oo2core_8_win64.dll")]
+    [DllImport("Dependencies/oo2core_8_win64.dll")]
     public static extern unsafe long OodleLZ_Decompress(
            byte* compBuf, uint compSize, byte* rawBuf, uint rawSize,
            int fuzzSafe,
@@ -29,15 +28,12 @@ public unsafe class OodleDecompressor : BaseCompressor
            ulong scratchSize,
            int threadPhase);
 
-    public override bool Decompress(BinaryReader reader, ulong size, out byte[] decompressed)
-    {
+    public override bool Decompress(BinaryReader reader, ulong size, out byte[] decompressed) {
         decompressed = new byte[size];
         ulong decompressedOffset = 0;
 
-        while (reader.BaseStream.Position < reader.BaseStream.Length)
-        {
-            if (BlockIndex == 0)
-            {
+        while (reader.BaseStream.Position < reader.BaseStream.Length) {
+            if (BlockIndex == 0) {
                 reader.BaseStream.Seek(0x8000, SeekOrigin.Current);
                 reader.BaseStream.Seek(8, SeekOrigin.Current);
             }
@@ -46,18 +42,16 @@ public unsafe class OodleDecompressor : BaseCompressor
             uint decompressedBufferSize = reader.ReadUInt32();
             uint flags = reader.ReadUInt32();
 
-            ulong alignedSize = ((ulong)compressedBufferSize + 0x3) & 0xFFFFFFFFFFFFFFFC;
+            ulong alignedSize = (ulong)compressedBufferSize + 0x3 & 0xFFFFFFFFFFFFFFFC;
             byte[] compressedBuffer = reader.ReadBytes((int)alignedSize);
 
-            fixed (byte* compressedBufferPtr = compressedBuffer)
-            {
-                fixed (byte* decompressedBufferPtr = decompressed)
-                {
+            fixed (byte* compressedBufferPtr = compressedBuffer) {
+                fixed (byte* decompressedBufferPtr = decompressed) {
                     ulong result = (ulong)OodleLZ_Decompress(
                         compressedBufferPtr,
-                        (uint)compressedBufferSize,
+                        compressedBufferSize,
                         decompressedBufferPtr + decompressedOffset,
-                        (uint)decompressedBufferSize,
+                        decompressedBufferSize,
                         0,
                         0,
                         0,
@@ -69,8 +63,7 @@ public unsafe class OodleDecompressor : BaseCompressor
                         0,
                         3);
 
-                    if (result != decompressedBufferSize)
-                    {
+                    if (result != decompressedBufferSize) {
                         throw new Exception($"Failed to decompress Oodle buffer, expected {decompressedBufferSize} got {result}");
                     }
 
@@ -78,8 +71,7 @@ public unsafe class OodleDecompressor : BaseCompressor
 
                     BlockIndex++;
 
-                    if (BlockIndex == NextBlockHashIndex)
-                    {
+                    if (BlockIndex == NextBlockHashIndex) {
                         reader.BaseStream.Seek(16384, SeekOrigin.Current);
                         NextBlockHashIndex += 512;
                     }
@@ -87,8 +79,7 @@ public unsafe class OodleDecompressor : BaseCompressor
             }
         }
 
-        if (size != decompressedOffset)
-        {
+        if (size != decompressedOffset) {
             return false;
         }
 
