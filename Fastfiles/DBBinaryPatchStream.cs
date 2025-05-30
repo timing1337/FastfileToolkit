@@ -70,8 +70,6 @@ namespace FastfileToolkit.Fastfiles {
 
                 ulong finalSize = BinaryUtils.ReadULEB128(Diff, ref DiffOffset);
 
-                Size += finalSize;
-
                 byte[] destChunk = new byte[finalSize];
                 ulong destOffset = 0;
 

@@ -1,5 +1,6 @@
 ﻿using FastfileToolkit.Fastfiles;
 using FastfileToolkit.Games;
+using FastfileToolkit.Games;
 using Serilog;
 using Serilog.Sinks.SystemConsole.Themes;
 using System.Reflection.Metadata;
@@ -37,6 +38,6 @@ public class Toolkit {
         })).CreateLogger();
         Instance = new BlackOps6(@"D:\SteamDownloader\BlackOps6\cod24");
 
-        Instance.LoadZone("code_post_gfx");
+        Instance.LoadZone("global");
     }
 }

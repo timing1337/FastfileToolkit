@@ -7,21 +7,30 @@ using System.Threading.Tasks;
 
 namespace FastfileToolkit.Fastfiles;
 public unsafe struct XArchiveBlock {
-    public byte* memory;
-    public ulong size;
+    public byte* Pointer;
+    public ulong Size;
 
-    public static XArchiveBlock Allocate(ulong size) {
-        XArchiveBlock block = new XArchiveBlock();
-        block.memory = (byte*)NativeMemory.AlignedAlloc((nuint)size, 4096);
-        block.size = size;
-        return block;
+    public XArchiveBlock(ulong size, bool allocate = false) {
+        Size = size;
+        if (allocate) {
+            Pointer = (byte*)NativeMemory.AlignedAlloc((nuint)size, 4096);
+        } else {
+            Pointer = null;
+        }
+    }
+
+    public void Allocate() {
+        if (Pointer != null || Size == 0)
+            return;
+
+        Pointer = (byte*)NativeMemory.AlignedAlloc((nuint)Size, 4096);
     }
 
     public void Free() {
-        if (memory == null)
+        if (Pointer == null)
             return;
-        NativeMemory.AlignedFree((void*)memory);
-        memory = null;
-        size = 0;
+        NativeMemory.AlignedFree((void*)Pointer);
+        Pointer = null;
+        Size = 0;
     }
 }

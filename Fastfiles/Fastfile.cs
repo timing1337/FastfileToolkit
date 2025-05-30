@@ -8,47 +8,69 @@ namespace FastfileToolkit.Fastfiles;
 
 public unsafe class Fastfile {
 
+    public string GameDirectory;
     public string Name;
-    public ulong Version;
+
+    public byte[] FastfileHeader;
 
     public XArchiveBlock* MemoryBlocks;
     public ulong* AssetList;
 
-    public byte[] sourceBuffer;
-
     public BinaryReader Reader;
 
-    public Fastfile(string path) {
-        Name = Path.GetFileNameWithoutExtension(path);
-        ReadFastfile(path);
+    public ulong Magic {
+        get {
+            return BitConverter.ToUInt64(FastfileHeader, 0);
+        }
     }
 
-    private void ReadFastfile(string zone) {
-        string path = Path.Join(Toolkit.Instance.GamePath, zone + ".ff");
+    public ulong Version {
+        get {
+            return BitConverter.ToUInt64(FastfileHeader, 8);
+        }
+    }
+    public ulong Filesize {
+        get {
+            return BitConverter.ToUInt64(FastfileHeader, 56);
+        }
+    }
+
+    public ulong[] BufferSizes {
+        get {
+            ulong[] bufferSizes = new ulong[17];
+            for (int i = 0; i < 17; i++) {
+                bufferSizes[i] = BitConverter.ToUInt64(FastfileHeader, 72 + (i * 8));
+            }
+            return bufferSizes;
+        }
+    }
+
+    public Fastfile(string gameDirectory, string zoneName) {
+        GameDirectory = gameDirectory;
+        Name = zoneName;
+
+        Patch(Read());
+        AllocateMemoryBlocks();
+    }
+
+    private byte[] Read() {
+        string path = Path.Join(GameDirectory, Name + ".ff");
+        Log.Information("Reading fastfile {name} from {path}", Name, path);
+        if (!File.Exists(path)) {
+            throw new FileNotFoundException($"Fastfile {Name} not found in {GameDirectory}");
+        }
 
         BinaryReader reader = new BinaryReader(File.Open(path, FileMode.Open));
 
-        if (reader.ReadUInt64() != 0x3030316166665749) { //IWffa100
+        FastfileHeader = reader.ReadBytes(224);
+
+        if (Magic != 0x3030316166665749) {
             throw new Exception("Invalid fast file header");
         }
-
-        Version = reader.ReadUInt64();
 
         if (Version < 18) {
             throw new Exception($"Unsupported fast file version: {Version}");
         }
-        //unknown 32 bytes
-        reader.BaseStream.Seek(56, SeekOrigin.Begin);
-        ulong fileSize = reader.ReadUInt64();
-
-        reader.BaseStream.Seek(72, SeekOrigin.Begin);
-
-        ulong[] bufferSizes = new ulong[17];
-        for (int i = 0; i < 17; i++) {
-            bufferSizes[i] = reader.ReadUInt64();
-        }
-
-        reader.BaseStream.Seek(224, SeekOrigin.Begin);
 
         if (Version >= 19) { //TAFF!
             uint taffMagic = reader.ReadUInt32();
@@ -68,29 +90,30 @@ public unsafe class Fastfile {
         }
 
         OodleDecompressor oodle = new OodleDecompressor();
-        if (!oodle.Decompress(reader, fileSize, out byte[] sourceBuffer)) {
+        if (!oodle.Decompress(reader, Filesize, out byte[] sourceBuffer)) {
             throw new Exception("Failed to decompress fastfile data");
         }
 
-        AllocateMemoryBlocks(bufferSizes);
-
-        this.sourceBuffer = sourceBuffer;
-        Patch(zone, sourceBuffer);
+        return sourceBuffer;
     }
 
-    private unsafe void Patch(string zone, byte[] sourceBuffer) {
-        string patchFile = Path.Join(Toolkit.Instance.GamePath, zone + ".fp");
+    private unsafe void Patch(byte[] sourceBuffer) {
+        string patchFile = Path.Join(GameDirectory, Name + ".fp");
         if (!File.Exists(patchFile)) {
+            Reader = new BinaryReader(new MemoryStream(sourceBuffer));
             return;
         }
+
         BinaryReader reader = new BinaryReader(File.Open(patchFile, FileMode.Open));
         FastPatch patch = FastPatch.Read(reader);
 
         if (patch.residentDiffUncompSize == 0 || patch.residentDiffCompSize == 0) {
+            Reader = new BinaryReader(new MemoryStream(sourceBuffer));
             return;
         }
 
-        reader.BaseStream.Seek(224 * 2, SeekOrigin.Current);
+        reader.BaseStream.Seek(224, SeekOrigin.Current);
+        FastfileHeader = reader.ReadBytes(224);
 
         if (Version >= 19) { //TAFF!
             uint taffMagic = reader.ReadUInt32();
@@ -117,26 +140,28 @@ public unsafe class Fastfile {
 
         var patchStream = new DBBinaryPatchStream(patch, sourceBuffer, patchBuffer);
         Reader = new BinaryReader(new MemoryStream(patchStream.Patch()));
+        Log.Information("Applied patch for fastfile {name}", Name);
     }
 
+    private void AllocateMemoryBlocks() {
+        AssetList = (ulong*)NativeMemory.AllocZeroed(512);
+        MemoryBlocks = (XArchiveBlock*)NativeMemory.AllocZeroed((nuint)(17 * sizeof(XArchiveBlock)));
 
-    private void AllocateMemoryBlocks(ulong[] bufferSizes) {
-        AssetList = (ulong*)Marshal.AllocHGlobal(128 * sizeof(ulong));
-        MemoryBlocks = (XArchiveBlock*)Marshal.AllocHGlobal(17 * sizeof(XArchiveBlock));
+        var bufferSizes = BufferSizes;
         for (int i = 0; i < 17; i++) {
             if (bufferSizes[i] == 0) continue;
-            MemoryBlocks[i] = XArchiveBlock.Allocate((nuint)bufferSizes[i]);
-
+            MemoryBlocks[i] = new XArchiveBlock((nuint)bufferSizes[i]);
+            MemoryBlocks[i].Allocate();
             Log.Information("Allocated block {i} of size {size}", i, bufferSizes[i]);
         }
     }
 
     private void FreeMemoryBlocks() {
         for (int i = 0; i < 17; i++) {
-            if (MemoryBlocks[i].memory == null) continue;
+            if (MemoryBlocks[i].Pointer == null) continue;
             MemoryBlocks[i].Free();
         }
-        Marshal.FreeHGlobal((IntPtr)MemoryBlocks);
-        Marshal.FreeHGlobal((IntPtr)AssetList);
+        NativeMemory.Free(MemoryBlocks);
+        NativeMemory.Free(AssetList);
     }
 }
