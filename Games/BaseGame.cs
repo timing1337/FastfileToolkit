@@ -25,6 +25,7 @@ public abstract unsafe class BaseGame {
     public Dictionary<string, Fastfile> LoadedFastfiles = new();
     public Dictionary<uint, string> AssetTypes = new();
     public Dictionary<uint, nint> LoadedStrings = new();
+    public Dictionary<ulong, ulong> UnlinkedAssets = new();
 
     public delegate void DB_InitStateFunc(void* loadState);
     public DB_InitStateFunc DB_InitState;
@@ -103,7 +104,7 @@ public abstract unsafe class BaseGame {
         DB_InitLoadStreams(loadState, zoneMem);
         DB_PatchMem_BeginLoad();
 
-        fixed(char* zoneName = zone.ToCharArray()) {
+        fixed (char* zoneName = zone.ToCharArray()) {
             Load_ArchiveData(loadState, zoneMem, fastfile.AssetList, zoneName, false);
         }
 
@@ -153,7 +154,7 @@ public abstract unsafe class BaseGame {
     public void DB_ReadXFileDetour(void* a1, byte* pos, ulong size) {
         Fastfile fastfile = LoadedFastfiles[CurrrentLoadingZone];
 
-        fixed(byte* data = &fastfile.Data[fastfile.Offset]) {
+        fixed (byte* data = &fastfile.Data[fastfile.Offset]) {
             NativeMemory.Copy(data, pos, (nuint)size);
             fastfile.Offset += size;
         }
@@ -177,7 +178,11 @@ public abstract unsafe class BaseGame {
 
     public nint DB_GetXAssetDetour(uint type, ulong hash, nint assetNamePtr) {
         hash = hash & 0x7FFFFFFFFFFFFFFF;
-        if(!LoadedAssets.ContainsKey(hash)) {
+        if (!LoadedAssets.ContainsKey(hash)) {
+            //Okay this is a MASSIVE issue,
+            //It's trying to find something that isn't loaded yet..which is a bad idea
+            //TODO: Fix this
+            //We can hook LoadStream and save the pointer of the unloaded asset, put it to UnloadedAssets and wait until the proper asset is loaded\
             return 0;
         }
         return LoadedAssets[hash].Asset;

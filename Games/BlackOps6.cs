@@ -45,7 +45,6 @@ unsafe class BlackOps6 : BaseGame {
         DecryptString = 0x701DE80,
 
         //Asset
-
         GetXAssetTypeName = 0x8B5E020,
         DB_AddXAsset = 0x2DD9DD0,
         DB_GetXAsset = 0x2DDC2E0,
@@ -62,31 +61,37 @@ unsafe class BlackOps6 : BaseGame {
                 Offset = 0x9696AC8,
                 Replacement = new byte[] { 0xC3 },
             },
+            //48 85 D2 0F 84 ? ? ? ? 48 89 5C 24 ? 48 89 74 24 ? 57 48 83 EC ? 48 8B 01
             new Patch() {
                 Name = "Disable DB_StoreScriptStringEntry",
                 Offset = 0x2E25E40,
                 Replacement = new byte[] { 0xC3 },
             },
+            //E8 ? ? ? ? 48 C7 43 ? ? ? ? ? 48 83 C4 ? 5B C3 CC
             new Patch(){
                 Name = "Disable loading external image data",
                 Offset = 0x6C3B8D0,
                 Replacement = new byte[] { 0xC3 },
             },
+            //0F B7 80 ? ? ? ? C3 90 40 53
             new Patch(){
                 Name = "Disable soundbank transient loading flag #1",
                 Offset = 0x2E284B0,
                 Replacement = new byte[] { 0xC3 },
             },
+            //E8 ? ? ? ? 48 8B 5C 24 ? 48 83 C4 ? 5F C3 4C 8D 44 24 ? BA ? ? ? ? 48 8B CB E8 ? ? ? ? 48 8B 5C 24 ? 48 89 07 48 83 C4 ? 5F C3 B8
             new Patch(){
                 Name = "Disable soundbank transient loading flag #2",
                 Offset = 0x8582B10,
                 Replacement = new byte[] { 0xC3 },
             },
+            //E8 ? ? ? ? E8 ? ? ? ? 48 8B 0B 8B D0 E8 ? ? ? ? 48 83 C4 ? 5B C3 90
             new Patch(){
                 Name = "Compute shader null patch",
                 Offset = 0x2DC1A50,
                 Replacement = new byte[] { 0xC3 },
             },
+            //E8 ? ? ? ? E8 ? ? ? ? 48 8B 0B 8B D0 E8 ? ? ? ? 48 83 C4 ? 5B C3 90
             new Patch(){
                 Name = "Compute shader null patch #2",
                 Offset = 0x6A7D0A0,
