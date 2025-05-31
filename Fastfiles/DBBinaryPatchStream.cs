@@ -49,21 +49,32 @@ namespace FastfileToolkit.Fastfiles {
             }
 
             DiffOffset += 5;
+
+            File.WriteAllBytes(Path.Join(Toolkit.DumpDirectory, "vcd_patch.bin"), Diff);
         }
 
         public byte[] Patch() {
             while (DiffOffset < Diff.Length) {
                 byte flags = Diff[DiffOffset++];
 
-                if (flags <= 0 || (flags & 3) == 3 || (flags & 3) != 1) {
+                if ((flags & 3) == 3) {
                     throw new Exception("Invalid VCD patch flags");
                 }
 
-                ulong sourceLength = BinaryUtils.ReadULEB128(Diff, ref DiffOffset);
-                ulong sourceOffset = (ulong)SourceOffset + BinaryUtils.ReadULEB128(Diff, ref DiffOffset);
+                ulong sourceLength = 0;
+                ulong sourceOffset = 0;
 
-                if ((flags & 4) != 0) {
-                    BinaryUtils.ReadULEB128(Diff, ref DiffOffset);
+                if ((flags & 3) > 0) {
+                    if ((flags & 3) >= 0 && (flags & 3) != 1) {
+                        throw new Exception("Unsupported VCD patch flags");
+                    }
+
+                    sourceLength = BinaryUtils.ReadULEB128(Diff, ref DiffOffset);
+                    sourceOffset = (ulong)SourceOffset + BinaryUtils.ReadULEB128(Diff, ref DiffOffset);
+
+                    if ((flags & 4) != 0) {
+                        BinaryUtils.ReadULEB128(Diff, ref DiffOffset);
+                    }
                 }
 
                 ulong patchLength = BinaryUtils.ReadULEB128(Diff, ref DiffOffset) + (((ulong)flags >> 1) & 4);

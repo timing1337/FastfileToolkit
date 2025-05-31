@@ -17,9 +17,13 @@ public struct Offset {
     public nint DB_PatchMem_BeginLoad;
     public nint Load_ArchiveData;
     public nint DB_ReadXFile;
+
+    //Hash
+    public nint Hash_ScriptStringHash;
     public nint j_CoD_XXH64;
 
     //Stream
+    public nint DB_InitState;
     public nint DB_InitLoadStreams;
     public nint DB_InitStreams;
 
@@ -33,7 +37,10 @@ public struct Offset {
     public nint DB_GetXAsset;
 
     // Black Ops 6 specific patches
+    public nint SaveStreamPostion;
+    public nint LoadStreamPostion;
     public nint DB_RemapAssetType;
+    public nint DB_LoadStoreScriptString;
 
     public Patch[] Patches;
 }

@@ -24,18 +24,21 @@ public abstract unsafe class BaseGame {
     public Dictionary<uint, List<XAsset>> LoadedAssets = new();
     public Dictionary<string, Fastfile> LoadedFastfiles = new();
     public Dictionary<uint, string> AssetTypes = new();
-    public Dictionary<ulong, nint> StringTable = new();
+    public Dictionary<uint, nint> LoadedStrings = new();
 
-    public delegate void Load_ArchiveDataFunc(void* zoneMem, void* assetList, char* ffName, bool wasPaused);
+    public delegate void DB_InitStateFunc(void* loadState);
+    public DB_InitStateFunc DB_InitState;
+
+    public delegate void Load_ArchiveDataFunc(void* loadState, void* zoneMem, void* assetList, char* ffName, bool wasPaused);
     public Load_ArchiveDataFunc Load_ArchiveData;
 
-    public delegate void DB_ReadXFile(byte* pos, ulong size);
+    public delegate void DB_ReadXFile(void* loadState, byte* pos, ulong size);
     public NativeHook<DB_ReadXFile> DB_ReadXFileHook;
 
-    public delegate void DB_InitStreamsFunc(void* blocks);
+    public delegate void DB_InitStreamsFunc(void* loadState, void* blocks);
     public NativeHook<DB_InitStreamsFunc> DB_InitStreamsHook;
 
-    public delegate void DB_InitLoadStreamsFunc(void* zoneMem);
+    public delegate void DB_InitLoadStreamsFunc(void* loadState, void* zoneMem);
     public DB_InitLoadStreamsFunc DB_InitLoadStreams;
 
     public delegate void DB_PatchMem_BeginLoadFunc();
@@ -58,6 +61,9 @@ public abstract unsafe class BaseGame {
 
     public delegate ulong j_CoD_XXH64Func(nint data, ulong size, ulong seed);
     public j_CoD_XXH64Func j_CoD_XXH64;
+
+    public delegate ulong Hash_ScriptStringHashFunc(nint ptr, ulong size, long seed);
+    public Hash_ScriptStringHashFunc Hash_ScriptStringHash;
 
     public BaseGame(string path) {
         GamePath = path;
@@ -89,15 +95,25 @@ public abstract unsafe class BaseGame {
         LoadedFastfiles[zone] = fastfile;
 
         //this is so unnecessary, but i don't want to deal with loadstreams.
+        void* loadState = NativeMemory.AllocZeroed(0x610);
+        void* tempData = NativeMemory.AllocZeroed(0x13000);
         void* zoneMem = NativeMemory.AllocZeroed(160);
 
-        DB_InitLoadStreams(zoneMem);
+        *(nint*)((nint)zoneMem + 120) = (nint)tempData;
+
+        DB_InitState(loadState);
+        DB_InitLoadStreams(loadState, zoneMem);
         DB_PatchMem_BeginLoad();
 
-        Load_ArchiveData(zoneMem, fastfile.AssetList, (char*)Marshal.StringToHGlobalAnsi(zone), false);
+        fixed(char* zoneName = zone.ToCharArray()) {
+            Load_ArchiveData(loadState, zoneMem, fastfile.AssetList, zoneName, false);
+        }
 
         //Free
         NativeMemory.Free(zoneMem);
+        NativeMemory.Free(loadState);
+        NativeMemory.Free(tempData);
+
         CurrrentLoadingZone = null;
     }
 
@@ -107,8 +123,9 @@ public abstract unsafe class BaseGame {
         DB_PatchMem_BeginLoad = Marshal.GetDelegateForFunctionPointer<DB_PatchMem_BeginLoadFunc>(Module.BaseAddress + GameOffset.DB_PatchMem_BeginLoad);
         DecryptString = Marshal.GetDelegateForFunctionPointer<DecryptStringFunc>(Module.BaseAddress + GameOffset.DecryptString);
         j_CoD_XXH64 = Marshal.GetDelegateForFunctionPointer<j_CoD_XXH64Func>(Module.BaseAddress + GameOffset.j_CoD_XXH64);
-        SL_GetStringOfSizeHook = new NativeHook<SL_GetStringOfSize>(Module.BaseAddress + GameOffset.SL_GetStringOfSize, SL_GetStringOfSizeDetour);
         GetXAssetTypeName = Marshal.GetDelegateForFunctionPointer<GetXAssetTypeNameFunc>(Module.BaseAddress + GameOffset.GetXAssetTypeName);
+        DB_InitState = Marshal.GetDelegateForFunctionPointer<DB_InitStateFunc>(Module.BaseAddress + GameOffset.DB_InitState);
+        Hash_ScriptStringHash = Marshal.GetDelegateForFunctionPointer<Hash_ScriptStringHashFunc>(Module.BaseAddress + GameOffset.Hash_ScriptStringHash);
     }
 
     public virtual void AttachHooks() {
@@ -117,6 +134,7 @@ public abstract unsafe class BaseGame {
         DB_GetXAssetHook = new NativeHook<DB_GetXAssetFunc>(Module.BaseAddress + GameOffset.DB_GetXAsset, DB_GetXAssetDetour);
 
         DB_InitStreamsHook = new NativeHook<DB_InitStreamsFunc>(Module.BaseAddress + GameOffset.DB_InitStreams, DB_InitStreamsDetour);
+        SL_GetStringOfSizeHook = new NativeHook<SL_GetStringOfSize>(Module.BaseAddress + GameOffset.SL_GetStringOfSize, SL_GetStringOfSizeDetour);
     }
 
     public void ApplyPatches() {
@@ -134,7 +152,7 @@ public abstract unsafe class BaseGame {
         }
     }
 
-    public void DB_ReadXFileDetour(byte* pos, ulong size) {
+    public void DB_ReadXFileDetour(void* a1, byte* pos, ulong size) {
         Fastfile fastfile = LoadedFastfiles[CurrrentLoadingZone];
         byte[] data = fastfile.Reader.ReadBytes((int)size);
         for (ulong i = 0; i < size; i++) {  
@@ -146,13 +164,14 @@ public abstract unsafe class BaseGame {
         var assetHeader = *(nint*)assetPtr;
         var hash = *(ulong*)assetHeader;
 
-        hash = hash & 0x7FFFFFFFFFFFFFFF; //Mask to 63 bits
+        hash = hash & 0x7FFFFFFFFFFFFFFF;
 
         LoadedAssets[type].Add(new XAsset {
             Zone = CurrrentLoadingZone,
             Hash = hash,
             Asset = assetHeader,
         });
+
         return assetHeader;
     }
 
@@ -163,16 +182,24 @@ public abstract unsafe class BaseGame {
         return xasset.Asset;
     }
 
-    public void DB_InitStreamsDetour(void* blocks) {
-        DB_InitStreamsHook.Trampoline(LoadedFastfiles[CurrrentLoadingZone].MemoryBlocks);
+    public void DB_InitStreamsDetour(void* loadState, void* blocks) {
+        DB_InitStreamsHook.Trampoline(loadState, LoadedFastfiles[CurrrentLoadingZone].MemoryBlocks);
     }
 
     public char* SL_GetStringOfSizeDetour(nint result, char* ptr, uint user, ulong size, int type) {
         if ((*ptr & 0xC0) == 0x80) {
-            void* container = NativeMemory.AllocZeroed(4096);
-            char* decrypted = DecryptString(container, 4096, ptr, (void*)0);
+            void* container = NativeMemory.AllocZeroed(8192);
+
+            char* decrypted = DecryptString(container, 8192, ptr, (void*)0);
+            string decryptedString = Marshal.PtrToStringUTF8((nint)decrypted);
+
+            nint stringPtr = Marshal.StringToHGlobalAnsi(decryptedString);
+            ulong hash = Hash_ScriptStringHash(stringPtr, (ulong)decryptedString.Length, 0x100000001B3);
+
+            LoadedStrings[(uint)hash] = stringPtr;
             NativeMemory.Free(container);
-            ptr = decrypted;
+
+            ptr = (char*)stringPtr;
         }
         return ptr;
     }
@@ -183,6 +210,7 @@ public abstract unsafe class BaseGame {
             string assetName = Marshal.PtrToStringUTF8((nint)GetXAssetTypeName(index));
             LoadedAssets[index] = new List<XAsset>();
             AssetTypes[index] = assetName;
+            Log.Information("Asset type {index}: {name}", index, assetName);
             index++;
             if (assetName == "assetlist") break;
         }

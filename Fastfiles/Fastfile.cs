@@ -152,7 +152,6 @@ public unsafe class Fastfile {
             if (bufferSizes[i] == 0) continue;
             MemoryBlocks[i] = new XArchiveBlock((nuint)bufferSizes[i]);
             MemoryBlocks[i].Allocate();
-            Log.Information("Allocated block {i} of size {size}", i, bufferSizes[i]);
         }
     }
 
