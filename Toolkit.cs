@@ -41,7 +41,6 @@ public class Toolkit {
         //get all fastfile files in the game directory
         var fastfiles = Directory.GetFiles(Instance.GamePath, "*.ff", SearchOption.AllDirectories);
         Log.Information("Found {count} fastfiles in {path}", fastfiles.Length, Instance.GamePath);
-        Log.Information("Fastfiles: {fastfiles}", string.Join(", ", fastfiles.Select(Path.GetFileName)));
         foreach (var fastfile in fastfiles) {
             var zoneName = Path.GetFileNameWithoutExtension(fastfile);
             Log.Information("Loading zone {zone}", zoneName);

@@ -101,6 +101,11 @@ unsafe class BlackOps6 : BaseGame {
                 Name = "Dlogschema null patch",
                 Offset = 0x8DF6780,
                 Replacement = new byte[] { 0xC3 },
+            },
+            new Patch(){
+                Name = "Disable post loading StreamingInfo",
+                Offset = 0x2E24C50,
+                Replacement = new byte[] { 0xC3 },
             }
         ]
     };
@@ -134,7 +139,7 @@ unsafe class BlackOps6 : BaseGame {
     }
 
     public unsafe nint DB_LoadStoreScriptStringDetour(void* loadState, nint pos) {
-        LoadedFastfiles[CurrrentLoadingZone].Reader.ReadUInt32();
+        LoadedFastfiles[CurrrentLoadingZone].Offset += 4;
         return pos;
     }
 

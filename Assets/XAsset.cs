@@ -8,6 +8,7 @@ namespace FastfileToolkit.Assets;
 
 public struct XAsset {
     public ulong Hash;
+    public uint Type;
     public nint Asset;
     public string Zone;
 }

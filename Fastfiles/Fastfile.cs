@@ -16,7 +16,8 @@ public unsafe class Fastfile {
     public XArchiveBlock* MemoryBlocks;
     public ulong* AssetList;
 
-    public BinaryReader Reader;
+    public byte[] Data;
+    public ulong Offset = 0;
 
     public ulong Magic {
         get {
@@ -100,7 +101,7 @@ public unsafe class Fastfile {
     private unsafe void Patch(byte[] sourceBuffer) {
         string patchFile = Path.Join(GameDirectory, Name + ".fp");
         if (!File.Exists(patchFile)) {
-            Reader = new BinaryReader(new MemoryStream(sourceBuffer));
+            Data = sourceBuffer;
             return;
         }
 
@@ -108,7 +109,7 @@ public unsafe class Fastfile {
         FastPatch patch = FastPatch.Read(reader);
 
         if (patch.residentDiffUncompSize == 0 || patch.residentDiffCompSize == 0) {
-            Reader = new BinaryReader(new MemoryStream(sourceBuffer));
+            Data = sourceBuffer;
             return;
         }
 
@@ -139,8 +140,7 @@ public unsafe class Fastfile {
         }
 
         var patchStream = new DBBinaryPatchStream(patch, sourceBuffer, patchBuffer);
-        Reader = new BinaryReader(new MemoryStream(patchStream.Patch()));
-        Log.Information("Applied patch for fastfile {name}", Name);
+        Data = patchStream.Patch();
     }
 
     private void AllocateMemoryBlocks() {

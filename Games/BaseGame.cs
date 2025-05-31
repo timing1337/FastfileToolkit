@@ -21,7 +21,7 @@ public abstract unsafe class BaseGame {
 
     public string CurrrentLoadingZone = null;
 
-    public Dictionary<uint, List<XAsset>> LoadedAssets = new();
+    public Dictionary<ulong, XAsset> LoadedAssets = new();
     public Dictionary<string, Fastfile> LoadedFastfiles = new();
     public Dictionary<uint, string> AssetTypes = new();
     public Dictionary<uint, nint> LoadedStrings = new();
@@ -88,8 +88,6 @@ public abstract unsafe class BaseGame {
             throw new Exception($"Zone {zone} is already loaded");
         }
 
-        Log.Information("Loading zone {zone}", zone);
-
         CurrrentLoadingZone = zone;
         var fastfile = new Fastfile(GamePath, zone);
         LoadedFastfiles[zone] = fastfile;
@@ -154,32 +152,35 @@ public abstract unsafe class BaseGame {
 
     public void DB_ReadXFileDetour(void* a1, byte* pos, ulong size) {
         Fastfile fastfile = LoadedFastfiles[CurrrentLoadingZone];
-        byte[] data = fastfile.Reader.ReadBytes((int)size);
-        for (ulong i = 0; i < size; i++) {  
-            pos[i] = data[i];
+
+        fixed(byte* data = &fastfile.Data[fastfile.Offset]) {
+            NativeMemory.Copy(data, pos, (nuint)size);
+            fastfile.Offset += size;
         }
     }
 
     public nint DB_AddXAssetDetour(nint stream, uint type, nint assetPtr) {
-        var assetHeader = *(nint*)assetPtr;
-        var hash = *(ulong*)assetHeader;
+        var pointer = *(nint*)assetPtr;
+        var hash = *(ulong*)pointer;
 
         hash = hash & 0x7FFFFFFFFFFFFFFF;
 
-        LoadedAssets[type].Add(new XAsset {
-            Zone = CurrrentLoadingZone,
+        LoadedAssets[hash] = new XAsset {
+            Asset = pointer,
+            Type = type,
             Hash = hash,
-            Asset = assetHeader,
-        });
+            Zone = CurrrentLoadingZone
+        };
 
-        return assetHeader;
+        return pointer;
     }
 
     public nint DB_GetXAssetDetour(uint type, ulong hash, nint assetNamePtr) {
         hash = hash & 0x7FFFFFFFFFFFFFFF;
-        var assetPool = LoadedAssets[type];
-        var xasset = assetPool.FirstOrDefault(a => a.Hash == hash);
-        return xasset.Asset;
+        if(!LoadedAssets.ContainsKey(hash)) {
+            return 0;
+        }
+        return LoadedAssets[hash].Asset;
     }
 
     public void DB_InitStreamsDetour(void* loadState, void* blocks) {
@@ -208,7 +209,6 @@ public abstract unsafe class BaseGame {
         uint index = 0;
         while (true) {
             string assetName = Marshal.PtrToStringUTF8((nint)GetXAssetTypeName(index));
-            LoadedAssets[index] = new List<XAsset>();
             AssetTypes[index] = assetName;
             Log.Information("Asset type {index}: {name}", index, assetName);
             index++;
