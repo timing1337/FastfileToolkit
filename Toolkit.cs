@@ -43,6 +43,7 @@ public class Toolkit {
         Log.Information("Found {count} fastfiles in {path}", fastfiles.Length, Instance.GamePath);
         foreach (var fastfile in fastfiles) {
             var zoneName = Path.GetFileNameWithoutExtension(fastfile);
+            if (zoneName.Length >= 20) continue;
             Log.Information("Loading zone {zone}", zoneName);
             Instance.LoadZone(zoneName);
         }

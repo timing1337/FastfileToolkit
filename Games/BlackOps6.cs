@@ -106,7 +106,22 @@ unsafe class BlackOps6 : BaseGame {
                 Name = "Disable post loading StreamingInfo",
                 Offset = 0x2E24C50,
                 Replacement = new byte[] { 0xC3 },
-            }
+            },
+            new Patch(){
+                Name = "TransientZone null patch",
+                Offset = 0x69C8160,
+                Replacement = new byte[] { 0xC3 },
+            },
+            new Patch(){
+                Name = "TransientZone null patch #2",
+                Offset = 0x8631690,
+                Replacement = new byte[] { 0xC3 },
+            },
+            new Patch(){
+                Name = "TransientZone null patch #2",
+                Offset = 0x6AF3D10,
+                Replacement = new byte[] { 0xC3 },
+            },
         ]
     };
 
