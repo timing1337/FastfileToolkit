@@ -14,6 +14,7 @@ public struct Patch {
 }
 
 public struct Offset {
+    public nint memcmp;
     public nint DB_PatchMem_BeginLoad;
     public nint Load_ArchiveData;
     public nint DB_ReadXFile;

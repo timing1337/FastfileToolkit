@@ -144,7 +144,7 @@ public unsafe class Fastfile {
     }
 
     private void AllocateMemoryBlocks() {
-        AssetList = (ulong*)NativeMemory.AllocZeroed(512);
+        AssetList = (ulong*)NativeMemory.AllocZeroed(65536);
         MemoryBlocks = (XArchiveBlock*)NativeMemory.AllocZeroed((nuint)(17 * sizeof(XArchiveBlock)));
 
         var bufferSizes = BufferSizes;
